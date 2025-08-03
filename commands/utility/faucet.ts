@@ -1,4 +1,4 @@
-import { ChatInputCommandInteraction, SlashCommandBuilder } from "discord.js";
+import { ChatInputCommandInteraction, SlashCommandBuilder, EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle } from "discord.js";
 import axios from "axios";
 
 import { isValidSuiAddress } from "../../utils";
@@ -40,16 +40,72 @@ module.exports = {
             const response = await axios.post(
                 `${SUI_FAUCET_SERVICE_URL}/api/v1/sui/faucet`,
                 {
-                    address: address
+                    walletAddress: address
                 }
             );
 
             if (response.status === 201) {
                 const data = response.data;
                 console.log(data);
-                await interaction.reply({ content: `🎉 Successfully sent tokens to ${address}!`, ephemeral: true });
+
+                // Create rich embed message
+                const embed = new EmbedBuilder()
+                    .setColor(0x6366f1) // Indigo color for a unique look
+                    .setTitle("🚀 Faucet Request Successful!")
+                    .setDescription("Your testnet tokens have been dispatched to your wallet")
+                    .addFields(
+                        {
+                            name: "🎯 Token Type",
+                            value: "SUI Testnet Tokens",
+                            inline: true
+                        },
+                        {
+                            name: "📬 Destination",
+                            value: `\`${address.substring(0, 10)}...${address.substring(address.length - 8)}\``,
+                            inline: true
+                        },
+                        {
+                            name: "🔗 Blockchain",
+                            value: "Sui Testnet",
+                            inline: true
+                        }
+                    )
+                    .setFooter({
+                        text: "⚡ Powered by SUI Faucet Service • Testnet tokens for development only",
+                        iconURL: "https://sui.io/favicon.ico"
+                    })
+                    .setTimestamp();
+
+                // Add transaction hash if available in response
+                if (data.digest) {
+                    embed.addFields({
+                        name: "📋 Transaction ID",
+                        value: `[\`${data.digest.substring(0, 12)}...${data.digest.substring(data.digest.length - 12)}\`](https://suiexplorer.com/txblock/${data.digest}?network=testnet)`,
+                        inline: false
+                    });
+                }
+
+                // Create button to view transaction (if hash is available)
+                const row = new ActionRowBuilder<ButtonBuilder>();
+                if (data.digest) {
+                    row.addComponents(
+                        new ButtonBuilder()
+                            .setLabel("🔍 View on Explorer")
+                            .setStyle(ButtonStyle.Link)
+                            .setURL(`https://suiexplorer.com/txblock/${data.digest}?network=testnet`)
+                    );
+                }
+
+                await interaction.reply({
+                    embeds: [embed],
+                    components: data.digest ? [row] : [],
+                    ephemeral: true
+                });
             } else {
-                await interaction.reply({ content: `❌ Failed to send tokens to ${address}!`, ephemeral: true });
+                await interaction.reply({
+                    content: `❌ Failed to send tokens to ${address}!`,
+                    ephemeral: true
+                });
             }
 
         } catch (error) {
